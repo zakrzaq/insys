@@ -1,0 +1,27 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #009fa4;
+  --color-dark: #36322f;
+  --color-light: #e6e2da;
+}
+
+body {
+  @apply mt-5 mx-auto p-5 max-w-5xl flex justify-center min-h-screen bg-dark text-light;
+}
+
+h1 {
+  @apply text-3xl font-bold mb-4 text-primary;
+}
+
+h2 {
+  @apply text-2xl font-semibold mb-3;
+}
+
+h3 {
+  @apply text-xl font-medium mb-2;
+}
+
+p {
+  @apply text-base leading-relaxed mb-2;
+}
