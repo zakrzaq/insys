@@ -1,5 +1,9 @@
+from typing import TypedDict
 from pydantic import BaseModel
 
+class ChatCompletionMessageParam(TypedDict):
+    role: str
+    content: str
 
 class ProcessIn(BaseModel):
     user_prompt: str

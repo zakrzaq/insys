@@ -12,19 +12,21 @@ load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 
-class AiProcessor():
+class AiProcessor:
     def __init__(self) -> None:
         self.client: OpenAI | None = None
         self.file: UploadFile | None = None
         self.text: str | None = None
         self.index: faiss.IndexFlatL2 | None = None
         self.chunk_texts: list[str] = []
-        self.embedding_dim: int = 1536 
+        self.embedding_dim: int = 1536
         self.messages: dict = {}
         self.session_id: str = ""
 
         if not OPENAI_API_KEY:
-            logger.warning("Warning: OPENAI_API_KEY environment variable not set. OpenAI features will not work.")
+            logger.warning(
+                "Warning: OPENAI_API_KEY environment variable not set. OpenAI features will not work."
+            )
             self.client = None
         else:
             try:
@@ -46,7 +48,7 @@ class AiProcessor():
         chunks = []
 
         for i in range(0, len(tokens), max_tokens):
-            chunk = encoding.decode(tokens[i:i + max_tokens])
+            chunk = encoding.decode(tokens[i : i + max_tokens])
             chunks.append(chunk)
 
         return chunks
@@ -60,8 +62,7 @@ class AiProcessor():
 
         for chunk in chunks:
             response = self.client.embeddings.create(
-                input=chunk,
-                model="text-embedding-3-small"
+                input=chunk, model="text-embedding-3-small"
             )
             embeddings.append(response.data[0].embedding)
 
@@ -73,10 +74,11 @@ class AiProcessor():
         if not self.index or not self.client:
             raise ValueError("FAISS index or client not set.")
 
-        prompt_embedding = self.client.embeddings.create(
-            input=prompt,
-            model="text-embedding-3-small"
-        ).data[0].embedding
+        prompt_embedding = (
+            self.client.embeddings.create(input=prompt, model="text-embedding-3-small")
+            .data[0]
+            .embedding
+        )
 
         D, I = self.index.search(np.array([prompt_embedding]).astype("float32"), top_k)
         return [self.chunk_texts[i] for i in I[0]]
@@ -86,7 +88,7 @@ class AiProcessor():
         self.text = None
         self.index = None
         self.chunk_texts = []
-        self.messages = []
+        self.messages = {}
 
 
 ai_proc = AiProcessor()

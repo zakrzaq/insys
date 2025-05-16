@@ -1,129 +1,61 @@
-import { useState } from 'react'
-import type { ChangeEvent } from 'react'
-import type { OpenAiResponse, UserPrompt } from './interfaces';
-import Header from "./componets/Header"
-import Spinner from './componets/Spinner';
-import ErrorMessage from './componets/ErrorMessage';
-import Message from './componets/Message';
-
-const API_URL = 'http://localhost:8000'
+import React, { useState, useCallback } from "react";
+import type { OpenAiResponse, UserPrompt } from "./interfaces";
+import Header from "./components/Header";
+import FileUploadSection from "./components/FileUploadSection";
+import QuerySection from "./components/QuerySection";
+import ResultsSection from "./components/ResultsSection";
 
 function App() {
-  const [fileSelected, setFileSelected] = useState<File | null>(null);
-  const [extractedText, setExtractedText] = useState<string | null>(null)
-  const [userPrompt, setUserPrompt] = useState<string | null>(null)
-  const [messageHistory, setMessageHistory] = useState<[] | (OpenAiResponse | UserPrompt)[]>([])
+  const [extractedText, setExtractedText] = useState<string | null>(null);
 
-  const [isFileLoading, setIsFileLoading] = useState<boolean>(false)
-  const [isFileError, setIsFileError] = useState<string | null>(null)
-  const [isProcessLoading, setIsProcessLoading] = useState<boolean>(false)
-  const [isProcessError, setIsProcessError] = useState<string | null>(null)
+  const [messageHistory, setMessageHistory] = useState<(OpenAiResponse | UserPrompt)[]>([]);
 
-  const uploadFile = async (file: File) => {
-    const formData = new FormData()
-    formData.append('file', file)
-    const res = await fetch(`${API_URL}/upload`, { method: "POST", body: formData })
-    if (res.ok) {
-      const data = await res.json()
-      setExtractedText(data.extracted_text)
-    }
-  }
+  const [isDocumentReadyForQuery, setIsDocumentReadyForQuery] = useState<boolean>(false);
 
-  const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
-    setIsFileError(null)
-    setUserPrompt(null)
-    setIsProcessError(null)
-    const file = event.target.files?.[0]
-    if (!file) {
-      return
-    }
-    try {
-      setIsFileLoading(true)
-      await uploadFile(file)
-      setFileSelected(file)
-    } catch (error: unknown | Error) {
-      setIsFileError(error instanceof Error ? error.message : "Failed to process request.")
-    } finally {
-      setIsFileLoading(false)
-    }
-  }
+  const [isFileUploading, setIsFileUploading] = useState<boolean>(false);
+  const [isQueryProcessing, setIsQueryProcessing] = useState<boolean>(false);
 
-  const handlePromptChange = (e: ChangeEvent<HTMLInputElement>) => setUserPrompt(e.target.value)
+  const handleTextExtracted = useCallback((text: string) => {
+    setExtractedText(text);
+    setIsDocumentReadyForQuery(true);
+    setMessageHistory([]);
+  }, []);
 
-  const processRequest = async () => {
-    if (!userPrompt) return
-    setIsProcessError(null)
-    try {
-      setIsProcessLoading(true)
-      const res = await fetch(`${API_URL}/process`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ user_prompt: userPrompt }),
-      });
+  const handleQuerySubmit = useCallback((prompt: UserPrompt, response: OpenAiResponse) => {
+    setMessageHistory((prevHistory) => [...prevHistory, prompt, response]);
+  }, []);
 
-      if (!res.ok) {
-        setIsProcessError(res.statusText)
-        throw new Error(`Server error: ${res.status}`);
-      }
-      const data = await res.json();
-      const userPromptRecord: UserPrompt = { user_prompt: userPrompt }
-      setMessageHistory((prev) => [...prev, userPromptRecord]);
-      setUserPrompt(null)
-      setMessageHistory((prev) => [...prev, data]);
-    } catch (error: unknown | Error) {
-      setIsProcessError(error instanceof Error ? error.message : "Failed to process request.")
-      console.error("Failed to process request:", error);
-    } finally {
-      setIsProcessLoading(false)
-    }
-
-  };
-
+  const handleClearPreviousState = useCallback(() => {
+    setExtractedText(null);
+    setMessageHistory([]);
+    setIsDocumentReadyForQuery(false);
+  }, []);
 
   return (
     <>
       <Header />
+      <main className="container mx-auto p-4 sm:p-6 lg:p-8 max-w-4xl">
+        <FileUploadSection
+          onTextExtracted={handleTextExtracted}
+          onUploadStart={() => setIsFileUploading(true)}
+          onUploadEnd={() => setIsFileUploading(false)}
+          clearPreviousErrorsAndResults={handleClearPreviousState}
+        />
 
-      <section>
-        <h2><span className="text-primary pr-2">Step 1:</span> PDF & Extract Text</h2>
-        <div>
-          <input
-            type="file" id="pdf-upload" accept="application/pdf" onChange={handleFileChange}
-            className="block w-auto text-sm file:mr-4 file:py-2.5 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-light hover:file:bg-light hover:file:text-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-colors"
-          />
-          {isFileLoading && (
-            <Spinner />
-          )}
-          {isFileError && <ErrorMessage message={isFileError} />}
-        </div>
-      </section>
+        <QuerySection
+          onQuerySubmit={handleQuerySubmit}
+          isDocumentReady={isDocumentReadyForQuery}
+          onQueryStart={() => setIsQueryProcessing(true)}
+          onQueryEnd={() => setIsQueryProcessing(false)}
+        />
 
-      <section className='mt-20'>
-        <h2><span className="text-primary pr-2">Step 2:</span>Query the document</h2>
-        <div className='flex gap-2'>
-          <input type='text' className='p-2 rounded-lg bg-light text-dark w-full' placeholder='Prompt...' onChange={handlePromptChange} />
-          <button className='py-2.5 px-4 rounded-lg text-sm bg-primary text-light hover:bg-light hover:text-dark' onClick={processRequest}>
-            Go
-          </button>
-        </div>
-        {isProcessLoading && (
-          <Spinner />
-        )}
-        {isProcessError && <ErrorMessage message={isProcessError} />}
-      </section>
-
-      <section className='mt-20'>
-        <h2><span className="text-primary pr-2">Step 3:</span>Result</h2>
-        <ul id='result' className='p-4 bg-light text-dark rounded-lg min-w-full min-h-20'>
-          {messageHistory.length > 0 && messageHistory.map((mes, index) => (
-            <Message key={index} message={mes} />
-          ))}
-        </ul>
-      </section>
+        <ResultsSection messageHistory={messageHistory} />
+      </main>
+      <footer className="text-center py-6 mt-10 border-t border-gray-300">
+        <p className="text-sm text-gray-600">&copy; {new Date().getFullYear()} PDF Insights Engine 🚀. All rights reserved.</p>
+      </footer>
     </>
-  )
+  );
 }
 
-export default App
+export default App;
